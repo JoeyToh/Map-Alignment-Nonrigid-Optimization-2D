@@ -26,8 +26,8 @@ import numpy as np
 import scipy.spatial
 import skimage.transform
 
-import polyIO
 from map_alignment import map_alignment as mapali
+from optimize_alignment import polyIO
 
 '''
 All images (np.array 2D), are indexed by [row,col] (i.e. y,x)
@@ -60,7 +60,7 @@ def get_fitness_gradient(image, fitness_sigma=50, grd_k_size=3, normalize=True):
     provided with an OGM as input image, this method computes the following:
     1) binary image (input image) | counting unexplored as open
     2) distance map (binary image)
-    3) fitness map (distance map) | gaussina(distance)
+    3) fitness map (distance map) | gaussian(distance)
     4) gradient (fitness map)
 
     it only returns the last two maps
@@ -197,7 +197,6 @@ def get_corner_sample(image,
     refined_edge = get_refined_edge(image, dilate_iterations=edge_refine_dilate_itr)
     corner_points = cv2.goodFeaturesToTrack(refined_edge, maxCorners, qualityLevel, minDistance)
     corner_points = corner_points.astype(np.int)[:,0,:]
-
     return corner_points
 
 ################################################################################
@@ -330,7 +329,7 @@ def estimate_motion(X, gradient_map, X_corr_stacked):
 ################################################################################
 def data_point_correlation(X, correlation_sigma=400, normalize=True):
     '''
-    Given a set of point in Euclidean space, the method calculates a matrix of
+    Given a set of points in Euclidean space, the method calculates a matrix of
     pairswise distances between all points, and applying a Gaussian to the
     distance matrix, it returns a matrix that give the correlation of points
     according to their distance
@@ -1329,6 +1328,7 @@ def extract_pathes_from_label_image(label_image, dilate_itr=0):
         lbl_reg = np.where(label_image==lbl, 255, 0).astype(np.uint8)
         lbl_reg = cv2.dilate(lbl_reg, np.ones((3,3),np.uint8), iterations=dilate_itr )
         polys = polyIO._extract_contours( lbl_reg, only_save_one_out=False )['out']
+        print(poly)
         pathes += [ mapali._create_mpath(poly) for poly in polys]
 
     return pathes

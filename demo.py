@@ -203,6 +203,7 @@ if __name__ == '__main__':
     else:
         raise( Exception('unknown value for hyp_sel_metric') )
 
+    # print(tform_align)
     arr_match_score = mapali._arrangement_match_score(src_results['arrangement'], dst_results['arrangement'], tform_align)
 
     ########################################
@@ -256,7 +257,7 @@ if __name__ == '__main__':
                                            qualityLevel=opt_config['quality_level'],
                                            minDistance=opt_config['min_distance'])
     X_aligned = tform_align._apply_mat( X_original, tform_align.params )
-
+    print(X_aligned)
     ########################################
     ########### construction of MOTION FIELD (of the destination map)
     ########################################
