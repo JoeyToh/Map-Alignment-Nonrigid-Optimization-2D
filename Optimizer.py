@@ -93,7 +93,7 @@ if __name__ == '__main__':
     dst_results, dst_lnl_t = mapali._lock_n_load(img_dst, lnl_config)
 
     mat = ''
-    with open('/home/hopermf/Desktop/intern_joey/proj_ceres/build/data.txt') as f:
+    with open('proj_ceres/build/data.txt') as f:
         line = f.readline()
         while line:
             mat += line
