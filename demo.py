@@ -257,7 +257,7 @@ if __name__ == '__main__':
                                            qualityLevel=opt_config['quality_level'],
                                            minDistance=opt_config['min_distance'])
     X_aligned = tform_align._apply_mat( X_original, tform_align.params )
-    # print(X_aligned)
+    print(X_aligned)
     ########################################
     ########### construction of MOTION FIELD (of the destination map)
     ########################################
