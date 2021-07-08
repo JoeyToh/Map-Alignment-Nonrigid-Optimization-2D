@@ -1,6 +1,9 @@
 from __future__ import print_function
 
 import sys
+import os
+
+import scipy
 new_paths = [
     u'../arrangement/',
     u'../Map-Alignment-2D',
@@ -12,6 +15,7 @@ for path in new_paths:
 import time
 import numpy as np
 import skimage.transform
+from matplotlib import pyplot as plt
 
 # map alignment package
 import map_alignment.map_alignment as mapali
@@ -92,8 +96,11 @@ if __name__ == '__main__':
     src_results, src_lnl_t = mapali._lock_n_load(img_src, lnl_config)
     dst_results, dst_lnl_t = mapali._lock_n_load(img_dst, lnl_config)
 
+    dirname = os.path.dirname(__file__)
+    filename = os.path.join(dirname, 'proj_ceres/build/data.txt')
     mat = ''
-    with open('proj_ceres/build/data.txt') as f:
+
+    with open(filename) as f: # load initial alignment matrix
         line = f.readline()
         while line:
             mat += line

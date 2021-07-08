@@ -173,6 +173,7 @@ bool Homography2DFromCorrespondencesLinearEuc(const Mat& x1,
   // Solve Lx=b
   const Vec h = L.fullPivLu().solve(b);
   Homography2DNormalizedParameterization<double>::To(h, H);
+  std::cout << "Boolean: " << (L*h).isApprox(b, expected_precision) << std::endl;
   return (L * h).isApprox(b, expected_precision);
 }
 
@@ -237,6 +238,7 @@ class TerminationCheckingCallback : public ceres::IterationCallback {
           SymmetricGeometricDistance(*H_, x1_.col(i), x2_.col(i));
     }
     average_distance /= x1_.cols();
+    std::cout << average_distance << std::endl;
 
     if (average_distance <= options_.expected_average_symmetric_distance) {
       return ceres::SOLVER_TERMINATE_SUCCESSFULLY;
@@ -253,6 +255,49 @@ class TerminationCheckingCallback : public ceres::IterationCallback {
 };
 
 
+class TransformResidual
+{
+public:
+  TransformResidual(
+    double level_x,
+    double level_y,
+    double level_meters_per_pixel,
+    double layer_x,
+    double layer_y)
+  : _level_x(level_x),
+    _level_y(level_y),
+    _level_meters_per_pixel(level_meters_per_pixel),
+    _layer_x(layer_x),
+    _layer_y(layer_y)
+  {
+  }
+
+  template<typename T>
+  bool operator()(
+    const T* const yaw,
+    const T* const scale,
+    const T* const translation,
+    T* residual) const
+  {
+    const T qx =
+      (( cos(yaw[0]) * _layer_x + sin(yaw[0]) * _layer_y) * scale[0]
+      + translation[0]) / _level_meters_per_pixel;
+
+    const T qy =
+      ((-sin(yaw[0]) * _layer_x + cos(yaw[0]) * _layer_y) * scale[0]
+      + translation[1]) / _level_meters_per_pixel;
+
+    residual[0] = _level_x - qx;
+    residual[1] = _level_y - qy;
+
+    return true;
+  }
+
+private:
+  double _level_x, _level_y;
+  double _level_meters_per_pixel;
+  double _layer_x, _layer_y;
+};
 
 bool EstimateHomography2DFromCorrespondences(const Mat& x1, const Mat& x2,
                       const EstimateHomographyOptions& options, Mat3* H) {
@@ -282,11 +327,21 @@ bool EstimateHomography2DFromCorrespondences(const Mat& x1, const Mat& x2,
            H->data());
   }
 
+// double yaw;
+// double scale;
+// double translation[2];
+
+//   for (int i = 0; i < x1.cols(); i++) {
+//     TransformResidual* tr = new TransformResidual(x1(0, i), x1(1, i), 0.05, x2(0, i), x2(1, i));
+//     problem.AddResidualBlock(
+//       new ceres::AutoDiffCostFunction<TransformResidual, 2, 1, 1, 2>(tr), nullptr, &yaw, &scale, &translation[0]);
+//   }
   // Configure the solve.
   ceres::Solver::Options solver_options;
   solver_options.linear_solver_type = ceres::DENSE_QR;
   solver_options.max_num_iterations = options.max_num_iterations;
   solver_options.update_state_every_iteration = true;
+  solver_options.minimizer_progress_to_stdout = true;
 
   // Terminate if the average symmetric distance is good enough.
   TerminationCheckingCallback callback(x1, x2, options, H);
@@ -297,6 +352,9 @@ bool EstimateHomography2DFromCorrespondences(const Mat& x1, const Mat& x2,
   ceres::Solve(solver_options, &problem, &summary);
   LOG(INFO) << "Summary:\n" << summary.FullReport();
   LOG(INFO) << "Final refined matrix:\n" << *H;
+  // LOG(INFO) << "Yaw: " << yaw;
+  // LOG(INFO) << "Scale: " << scale;
+  // LOG(INFO) << "Translation: " << translation[0];
 
   return summary.IsSolutionUsable();
 }
@@ -337,13 +395,10 @@ Mat initialise_input_matrix(string arr, int num) {
 }
 
 int main(int argc, char** argv) {
+  FLAGS_logtostderr = 1;
   google::InitGoogleLogging(argv[0]);
 
-  // Test values for input:
-  // [(1, 2), (3, 4), (5, 11), (23, 6)] [(7, 8), (5, 9), (10, 13), (23, 8)]
-  // [(13, 15), (0.3, 0.999), (5, 0.0004), (3.2, 1.8)] [(7, 8), (5, 9), (10, 13), (4.5, 2.7)]
-  // For magni_chart and mir_5cm: [(480, 231), (228, 219), (549, 472), (205, 461)] [(476, 710), (960, 710), (332, 240), (984, 248)]
-  // For CRH and CRH_new: [(199, 135), (1118, 189), (331, 448), (1093, 509)] [(49, 83), (1116, 81), (220, 446), (1124, 460)]
+  // Parsing input points into matrices
   string input;
   getline(cin, input);
   string delimiter = "]";
@@ -357,51 +412,40 @@ int main(int argc, char** argv) {
   Mat x1 = initialise_input_matrix(arr1, num_points);
   Mat x2 = initialise_input_matrix(arr2, num_points);
 
-  Mat3 homography_matrix;
-  // This matrix has been dumped from a Blender test file of plane tracking.
-  // clang-format off
-  homography_matrix << 1.243715, -0.461057, -111.964454,
-                       0.0,       0.617589, -192.379252,
-                       0.0,      -0.000983,    1.0;
-  // clang-format on
-
-  // Mat x1(2, 100);
-  // for (int i = 0; i < x1.cols(); ++i) {
-  //   x1(0, i) = rand() % 1024;
-  //   x1(1, i) = rand() % 1024;
-  // }
-
-  // Mat x2 = x1;
-  // for (int i = 0; i < x2.cols(); ++i) {
-  //   Vec3 homogenous_x1 = Vec3(x1(0, i), x1(1, i), 1.0);
-  //   Vec3 homogenous_x2 = homography_matrix * homogenous_x1;
-
-  //   x2(0, i) = homogenous_x2(0) / homogenous_x2(2);
-  //   x2(1, i) = homogenous_x2(1) / homogenous_x2(2);
-
-  //   // Apply some noise
-  //   x2(0, i) += static_cast<double>(rand() % 1000) / 5000.0;
-  //   x2(1, i) += static_cast<double>(rand() % 1000) / 5000.0;
-  // }
-
   std::cout << "Matrix 1:\n" << x1 << std::endl;
   std::cout << "Matrix 2:\n" << x2 << std::endl;
 
+  // Defining parameters
   Mat3 estimated_matrix;
   EstimateHomographyOptions options;
-  options.expected_average_symmetric_distance = 0.02;
+  options.expected_average_symmetric_distance = 1e-30;
 
   EstimateHomography2DFromCorrespondences(x1, x2, options, &estimated_matrix);
   estimated_matrix /= estimated_matrix(2, 2); // Normalize the matrix for easier comparison.
 
-  // std::cout << "Original matrix:\n" << homography_matrix << "\n";
   std::cout << "Estimated matrix:\n" << estimated_matrix << "\n";
 
   ofstream file;
   file.open("data.txt");
-  // file << num_points << endl << arr1 << endl << arr2 << endl << estimated_matrix << endl;
   file << estimated_matrix << endl;
   file.close();
 
   return EXIT_SUCCESS;
 }
+
+  // Test values for input: ** do not change **
+  // For magni_chart and mir_5cm: [(480, 231), (228, 219), (549, 472), (205, 461)] [(476, 710), (960, 710), (332, 240), (984, 248)]
+  // For CRH and CRH_new: [(199, 135), (1118, 189), (331, 448), (1093, 509)] [(49, 83), (1116, 81), (220, 446), (1124, 460)]
+
+  // Experiemental values for magni chart and mir_5cm
+  // All points: // does not work
+  // [(208, 462), (212, 339), (226, 219), (347, 415), (479, 230), (476, 354), (587, 347), (626, 253), (550, 473)] [(985, 247), (984, 489), (960, 713), (719, 353), (477, 711), (475, 471), (257, 486), (184, 670), (332, 239)]
+  // corners:
+  // [(208, 462), (226, 219), (550, 473), (626, 253)] [(985, 247), (960, 713), (332, 239), (184, 670)]
+  // corners + 1 point:
+  // [(208, 462), (226, 219), (550, 473), (626, 253), (587, 347)] [(985, 247), (960, 713), (332, 239), (184, 670), (257, 486)]
+  // corners + 2 points: // does not work
+  // [(208, 462), (226, 219), (550, 473), (626, 253), (587, 347), (212, 339)] [(985, 247), (960, 713), (332, 239), (184, 670), (257, 486), (984, 489)]
+  // only on one side: // inaccurate
+  // [(208, 462), (212, 339), (226, 219), (347, 415)] [(985, 247), (984, 489), (960, 713), (719, 353)]
+  // [(208, 462), (226, 219), (550, 473), (626, 253), (587, 347), (587.2, 347.2)] [(985, 247), (960, 713), (332, 239), (184, 670), (257, 486), (257.2, 486.2)]

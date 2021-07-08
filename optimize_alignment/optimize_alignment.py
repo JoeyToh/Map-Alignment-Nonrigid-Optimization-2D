@@ -294,6 +294,8 @@ def estimate_fitness(X, fitness_map):
     valid_idx = np.nonzero(valid_mask)[0]
 
     fitness = np.zeros(X.shape[0])
+    # print(valid_idx)
+    # print(fitness_map.shape)
     fitness[valid_idx] = fitness_map[X[valid_idx,1].astype(int), X[valid_idx,0].astype(int)]
     return fitness
 

@@ -1,0 +1,12 @@
+[
+    {
+	    "map-1" : {
+		    "map-number" : 1,
+		    "fleet_name" : "fleet_a"
+	    },
+	    "map-2" : {
+		    "map-number" : 2,
+		    "fleet_name" : "fleet_b"
+	    }
+    }
+]

@@ -1,6 +1,7 @@
 # importing the module
 import cv2
 import sys
+from matplotlib import pyplot as plt
 
 # function to display the coordinates of
 # of the points clicked on the image
