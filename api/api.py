@@ -10,8 +10,9 @@ app.config["DEBUG"] = True
 # maps = [
 #     {
 # 	    'map-number' : 1,
-#         '_id' : ObjectId(\"5f1012ace22b8136334824e2\"),
-#         'fleet_name' : \"fleet_a\",
+#       'path-to-file': '/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/map_sample/magni_chart_5cm.jpeg',
+#       '_id' : ObjectId(\"5f1012ace22b8136334824e2\"),
+#       'fleet_name' : \"fleet_a\",
 # 	    'floor_name' : \"L1\",
 #         'translation' : {
 #             'x' : 39.85,
@@ -29,7 +30,8 @@ app.config["DEBUG"] = True
 # 	    'updatedAt' : \"ISODate(2021-03-12T08:19:40.830Z)\"
 #     },
 #     {
-#         'map-number' : 2,
+#       'map-number' : 2,
+#       'path_to_file' : "/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/map_sample/mir_5cm.jpeg",
 # 		'_id' : ObjectId(\"6c178ace22b8136334824e2\"),
 # 		'fleet_name' : \"fleet_b\",
 # 		'floor_name' : \"L1\",
@@ -109,6 +111,7 @@ def store_maps(maps):
     [
         {
 	        'map-number' : 1,
+            'path_to_file' : "/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/map_sample/magni_chart_5cm.jpeg",
             '_id' : ObjectId("5f1012ace22b8136334824e2"),
             'fleet_name' : "fleet_a",
 	        'floor_name' : "L1",
@@ -128,7 +131,8 @@ def store_maps(maps):
 	        'updatedAt' : "ISODate(2021-03-12T08:19:40.830Z)"
        },
        {
-           'map-number' : 2,
+            'map-number' : 2,
+            'path_to_file' : "/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/map_sample/mir_5cm.jpeg",
 	    	'_id' : ObjectId("6c178ace22b8136334824e2"),
 	    	'fleet_name' : "fleet_b",
 	    	'floor_name' : "L1",
@@ -241,8 +245,9 @@ def add_points(points):
     map_1_to_add = points[0]
     map_2_to_add = points[1]
 
-    assert(map_1_old["map-number"] == map_1_to_add["map-number"])
-    assert(map_2_old["map-number"] == map_2_to_add["map-number"])
+    assert(map_1_old["map-number"] == map_1_to_add["map-number"]) # ensure that points are added to the correct map
+    assert(map_2_old["map-number"] == map_2_to_add["map-number"]) # ensure that points are added to the correct map
+    assert(len(map_1_to_add["points"]) == len(map_2_to_add["points"])) # ensure that same number of points are added for each map
 
     points_new = []
     map_1_new = {
@@ -255,6 +260,8 @@ def add_points(points):
     }
     points_new.extend(map_1_new, map_2_new)
     store(points_new, 'storage/alignment/input/points/points.json')
+
+    assert(len(map_1_new["points"]) == len(map_2_new["points"])) # ensure that the total number of points are the same for each map
 
     return response(points_new)
 
@@ -296,7 +303,7 @@ def alignment_parameters():
 
 @app.route('/api/v1/data/alignment/output/matrix', methods=['GET'])
 def get_alignment_matrix():
-    # TODO: Call Homography.cc
+    # Call Homography.cc
     matrix = retrieve('storage/alignment/output/matrix.json')
     return response(matrix)
 
@@ -329,7 +336,7 @@ def optimization_parameters():
 
 @app.route('/api/v1/data/optimization/output/matrix', methods=['GET'])
 def get_optimization_matrix():
-    # TODO: Call Optimizer.py
+    # Call Optimizer.py
     matrix = retrieve('storage/optimization/output/matrix.json')
     return response(matrix)
 
