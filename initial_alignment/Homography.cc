@@ -395,37 +395,61 @@ Mat initialise_input_matrix(string arr, int num) {
     return mat;
 }
 
-tuple<Mat, Mat> pointsParser(string path, Json::Reader reader) {
-  ifstream file(path);
-  Json::Value pointsJson;
-  reader.parse(file, pointsJson);
-  string points1 = pointsJson[0]["points"].toStyledString();
-  string points2 = pointsJson[1]["points"].toStyledString();
-  points1 = removeCharacters(points1, '"');
-  points2 = removeCharacters(points2, '"');
-  string input = points1 + " " + points2;
-  string delimiter = "]";
-  int pos = input.find(delimiter);
-  string arr1 = input.substr(2, pos - 3);
-  string temp = input.substr(pos + 5);
-  string arr2 = temp.substr(0, temp.length() - 3);
-  int count = std::count(arr1.begin(), arr1.end(), ',');
-  double num_points = ceil(count/2.0);
+// tuple<Mat, Mat> pointsParser(string path, Json::Reader reader) {
+//   ifstream file(path);
+//   Json::Value pointsJson;
+//   reader.parse(file, pointsJson);
+//   string points1 = pointsJson[0]["points"].toStyledString();
+//   string points2 = pointsJson[1]["points"].toStyledString();
+//   points1 = removeCharacters(points1, '"');
+//   points2 = removeCharacters(points2, '"');
+//   string input = points1 + " " + points2;
+//   string delimiter = "]";
+//   int pos = input.find(delimiter);
+//   string arr1 = input.substr(2, pos - 3);
+//   string temp = input.substr(pos + 5);
+//   string arr2 = temp.substr(0, temp.length() - 3);
+//   int count = std::count(arr1.begin(), arr1.end(), ',');
+//   double num_points = ceil(count/2.0);
 
-  Mat x1 = initialise_input_matrix(arr1, num_points);
-  Mat x2 = initialise_input_matrix(arr2, num_points);
+//   Mat x1 = initialise_input_matrix(arr1, num_points);
+//   Mat x2 = initialise_input_matrix(arr2, num_points);
+//   file.close();
 
-  return {x1, x2};
-}
+//   return {x1, x2};
+// }
 
-tuple<int, double> paramsParser(string path, Json::Reader reader) {
-  ifstream file(path);
-  Json::Value paramsJson;
-  reader.parse(file, paramsJson);
-  int max_num_int = paramsJson["max_num_iterations"].asInt();
-  double ave_sym_dist = paramsJson["ave_sym_dist"].asDouble();
-  return {max_num_int, ave_sym_dist};
-}
+// tuple<int, double> paramsParser(string path, Json::Reader reader) {
+//   ifstream file(path);
+//   Json::Value paramsJson;
+//   reader.parse(file, paramsJson);
+//   int max_num_int = paramsJson["max_num_iterations"].asInt();
+//   double ave_sym_dist = paramsJson["ave_sym_dist"].asDouble();
+//   file.close();
+
+//   return {max_num_int, ave_sym_dist};
+// }
+
+// void store(Mat3 matrix, string path) {
+//   Json::Value mat;
+//   Json::Value vec(Json::arrayValue);
+
+//   for (int i = 0; i < matrix.rows(); i++) {
+//       Json::Value row(Json::arrayValue);
+
+//       for (int j = 0; j < matrix.cols(); j++) {
+//           row.append(Json::Value(matrix(i, j)));
+//       }
+
+//       vec.append(row);
+//   }
+
+//   mat["matrix"] = vec;
+
+//   ofstream file(path);
+//   Json::StyledStreamWriter writer;
+//   writer.write(file, mat);
+// }
 
 int main(int argc, char** argv) {
   FLAGS_logtostderr = 1;
@@ -462,14 +486,17 @@ int main(int argc, char** argv) {
   options.expected_average_symmetric_distance = 1e-30; // ave_sym_dist;
   // options.max_num_iterations = max_num_int;
 
+  // Estimate matrix
   EstimateHomography2DFromCorrespondences(x1, x2, options, &estimated_matrix);
   estimated_matrix /= estimated_matrix(2, 2); // Normalize the matrix for easier comparison.
   std::cout << "Estimated matrix:\n" << estimated_matrix << "\n";
 
+  // Storage
   ofstream file;
   file.open("data.txt");
   file << estimated_matrix << endl;
   file.close();
+  // store(estimated_matrix, "/api/storage/alignment/output/matrix.json");
 
   return EXIT_SUCCESS;
 }

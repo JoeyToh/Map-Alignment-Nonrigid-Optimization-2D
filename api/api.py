@@ -5,64 +5,7 @@ import os
 app = Flask(__name__)
 app.config["DEBUG"] = True
 
-################################### DATA ######################################
-
-# maps = [
-#     {
-# 	    'map-number' : 1,
-#       'path-to-file': '/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/map_sample/magni_chart_5cm.jpeg',
-#       '_id' : ObjectId(\"5f1012ace22b8136334824e2\"),
-#       'fleet_name' : \"fleet_a\",
-# 	    'floor_name' : \"L1\",
-#         'translation' : {
-#             'x' : 39.85,
-#             'y' : -39.85,
-#             'z' : 0.0
-#         },
-# 	    'rotation' : 0.0,
-# 	    'resolution' : 0.05,
-# 	    'axis' : {
-#             'x' : 1.0,
-#             'y' : 1.0,
-#             'z' : 1.0
-# 	    },
-#         'createdAt' : \"ISODate(2021-02-25T04:26:23.148Z)\",
-# 	    'updatedAt' : \"ISODate(2021-03-12T08:19:40.830Z)\"
-#     },
-#     {
-#       'map-number' : 2,
-#       'path_to_file' : "/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/map_sample/mir_5cm.jpeg",
-# 		'_id' : ObjectId(\"6c178ace22b8136334824e2\"),
-# 		'fleet_name' : \"fleet_b\",
-# 		'floor_name' : \"L1\",
-# 		'translation' : {
-#     			'x' : 34.85,
-#     			'y' : -20.85,
-#     			'z' : 0.0
-# 		},
-# 		'rotation' : 0.0,
-# 		'resolution' : 0.05,
-# 		'axis' : {
-#     			'x' : 1.0,
-#     			'y' : 1.0,
-#     			'z' : 1.0
-# 		},
-# 		'createdAt' : \"ISODate(2021-02-25T04:26:23.148Z)\",
-# 		'updatedAt' : \"ISODate(2021-03-12T08:19:40.830Z)\"
-# 	}
-# ]
-
-# points = [
-#     {
-#         "map-number" : 1,
-#         "points" : ["(1, 2)", "(3, 4)", "(5, 6)"]
-#     },
-#     {
-#         "map-number" : 2,
-#         "points" : ["(7, 8)", "(2, 7)", "(9, 2.1)"]
-#     }
-# ]
-################################# STORAGE #####################################
+################################### STORAGE ###################################
 
 def store(data, relative_path_to_file):
     '''
@@ -84,7 +27,7 @@ def retrieve(relative_path_to_file):
         data = json.load(f)
     return data
 
-################################## ERROR ######################################
+#################################### ERROR ####################################
 
 @app.errorhandler(404)
 def not_found(error):
@@ -94,12 +37,12 @@ def not_found(error):
 def bad_request(error):
     return make_response(jsonify({'error': error}), 400)
 
-############################### RESPONSE ######################################
+################################## RESPONSE ###################################
 
 def response(data, code=200):
     return jsonify(data), code
 
-################################# MAPS ########################################
+#################################### MAPS #####################################
 
 def get_maps():
     maps = retrieve('storage/maps/maps.json')
@@ -165,7 +108,7 @@ def update_maps():
     else:
         return get_maps()
 
-################################# POINTS ######################################
+################################### POINTS ####################################
 
 def get_points():
     points = retrieve('storage/alignment/input/points/points.json')
@@ -274,7 +217,7 @@ def update_points():
     else:
         return get_points()
 
-############################ ALIGNMENT PARAMS #################################
+############################## ALIGNMENT PARAMS ###############################
 
 def get_alignment_parameters():
     params = retrieve('storage/alignment/input/parameters.json')
@@ -299,7 +242,7 @@ def alignment_parameters():
     else:
         get_alignment_parameters()
 
-############################# ALIGNMENT MATRIX ################################
+############################## ALIGNMENT MATRIX ###############################
 
 @app.route('/api/v1/data/alignment/output/matrix', methods=['GET'])
 def get_alignment_matrix():
@@ -307,7 +250,7 @@ def get_alignment_matrix():
     matrix = retrieve('storage/alignment/output/matrix.json')
     return response(matrix)
 
-########################## OPTIMIZATION PARAMS ################################
+############################# OPTIMIZATION PARAMS #############################
 
 def get_optimization_parameters():
     params = retrieve('storage/optimization/input/parameters.json')
@@ -332,12 +275,28 @@ def optimization_parameters():
     else:
         get_optimization_parameters()
 
-########################### OPTIMIZATION MATRIX ###############################
+############################# OPTIMIZATION MATRIX #############################
 
 @app.route('/api/v1/data/optimization/output/matrix', methods=['GET'])
 def get_optimization_matrix():
     # Call Optimizer.py
-    matrix = retrieve('storage/optimization/output/matrix.json')
+    matrix = retrieve('storage/optimization/output/optimize/matrix.json')
+    return response(matrix)
+
+################################# GRADIENT MAP ################################
+
+@app.route('/api/v1/data/optimization/output/matrix', methods=['GET'])
+def get_optimization_matrix():
+    # Call Optimizer.py
+    matrix = retrieve('storage/optimization/output/gradient/gmap.json')
+    return response(matrix)
+
+################################# FINAL MATRIX ################################
+
+@app.route('/api/v1/data/optimization/output/final', methods='GET')
+def get_final_matrix():
+    # Call Optimizer.py
+    matrix = retrieve('storage/optimization/output/final/tfmatrix.json')
     return response(matrix)
 
 ###############################################################################
