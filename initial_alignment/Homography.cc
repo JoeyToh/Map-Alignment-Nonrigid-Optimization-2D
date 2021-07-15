@@ -451,7 +451,7 @@ Mat initialise_input_matrix(string arr, int num) {
 //   writer.write(file, mat);
 // }
 
-int main(int argc, char** argv) {
+int run(int argc, char** argv) {
   FLAGS_logtostderr = 1;
   google::InitGoogleLogging(argv[0]);
 
@@ -496,13 +496,20 @@ int main(int argc, char** argv) {
   file.open("data.txt");
   file << estimated_matrix << endl;
   file.close();
-  // store(estimated_matrix, "/api/storage/alignment/output/matrix.json");
+  // store(estimated_matrix, "api/storage/alignment/output/matrix.json");
 
   return EXIT_SUCCESS;
 }
 
+int main(int argc, char** argv) {
+  return run(argc, argv);
+}
 
-
+// extern "C" {
+//     int My_Function(int argc, char** argv) {
+//         return main(argc, argv);
+//     }
+// }
 
   // Test values for input: ** do not change **
   // For magni_chart and mir_5cm: [(480, 231), (228, 219), (549, 472), (205, 461)] [(476, 710), (960, 710), (332, 240), (984, 248)]

@@ -146,8 +146,7 @@ def plot_aligned_optimized(dst_image,
 
 ################################################################################
 def plot_alignment_motion_optimized(dst_image, src_img_aligned, src_img_optimized,
-                                    gradient_map, X_aligned, X_optimized,
-                                    save_to_file):
+                                    gradient_map, X_aligned, X_optimized):
     ''''''
     fig, axes = plt.subplots(1,3, figsize=(20,12))
 
@@ -163,14 +162,8 @@ def plot_alignment_motion_optimized(dst_image, src_img_aligned, src_img_optimize
     axes[2].imshow(src_img_optimized, origin='lower', cmap='gray', alpha=.5, clip_on=True)
 
 
-    if save_to_file:
-        plt.savefig(save_to_file+'.png', bbox_inches='tight')
-        plt.tight_layout()
-        plt.show()
-
-    else:
-        plt.tight_layout()
-        plt.show()
+    plt.tight_layout()
+    plt.show()
 
 
 ################################################################################

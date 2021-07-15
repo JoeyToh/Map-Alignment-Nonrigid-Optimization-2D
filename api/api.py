@@ -279,7 +279,6 @@ def optimization_parameters():
 
 @app.route('/api/v1/data/optimization/output/matrix', methods=['GET'])
 def get_optimization_matrix():
-    # Call Optimizer.py
     matrix = retrieve('storage/optimization/output/optimize/matrix.json')
     return response(matrix)
 
@@ -295,7 +294,6 @@ def get_optimization_matrix():
 
 @app.route('/api/v1/data/optimization/output/final', methods='GET')
 def get_final_matrix():
-    # Call Optimizer.py
     matrix = retrieve('storage/optimization/output/final/tfmatrix.json')
     return response(matrix)
 

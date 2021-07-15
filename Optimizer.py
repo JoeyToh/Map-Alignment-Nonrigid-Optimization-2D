@@ -2,8 +2,10 @@ from __future__ import print_function
 
 import sys
 import os
+from numpy.lib.arraysetops import isin
 
 import scipy
+from scipy import ndimage as ndi
 new_paths = [
     u'../arrangement/',
     u'../Map-Alignment-2D',
@@ -16,6 +18,7 @@ import json
 import time
 import numpy as np
 import skimage.transform
+import skimage._shared.utils as sksh
 from matplotlib import pyplot as plt
 
 # map alignment package
@@ -75,27 +78,7 @@ def get_parameters():
     max_corners = params["max_corners"]
     return min_dist, max_corners
 
-def inital_alignment():
-    visualize = False
-    return
-
-################################################################################
-
-if __name__ == '__main__':
-    '''
-    Parameters and Options:
-    -----------------------
-    --img_src 'the-address-name-to-sensor-map'
-    --img_dst 'the-address-name-to-layout-map'
-    -visualize
-    -multiprocessing
-    Examples:
-    ---------
-    python demo.py --img_src 'map_sample/F5_04.png' --img_dst 'map_sample/F5_layout.png' --hyp_sel_metric 'fitness' -visualize -multiprocessing
-    python demo.py --img_src 'map_sample/F5_04.png' --img_dst 'map_sample/F5_layout.png' --hyp_sel_metric 'matchscore' -visualize -save_to_file -multiprocessing
-    '''
-
-    ########################### INITIALIZATION from CLI ############################
+def initialise():
     args = sys.argv
 
     # fetching options from input arguments
@@ -113,19 +96,17 @@ if __name__ == '__main__':
             item = next( listiterator )
             if item[:2] == '--':
                 exec(item[2:] + ' = next( listiterator )')
+
         except:
             break
 
-    # setting defaults values for parameter
-    visualize = True if 'visualize' in options else False
-    save_to_file = True if 'save_to_file' in options else False
-    multiprocessing = True if 'multiprocessing' in options else False
+    details = locals()
+    return details['img_src'], details['img_dst']
 
-    ########################## FIRST STAGE - MAP ALIGNMENT #########################
+def initial_alignment(img_src, img_dst):
 
     ############################ Alignment Configurations ##########################
 
-    ########## lock and load
     lnl_config = {'binary_threshold_1': 200, # with numpy - for SKIZ and distance
                   'binary_threshold_2': [100, 255], # with cv2 - for trait detection
                   'traits_from_file': False, # else provide yaml file name
@@ -162,7 +143,10 @@ if __name__ == '__main__':
     # tform = get_alignment_matrix()
     # tform_align = skimage.transform._geometric.ProjectiveTransform(matrix=tform)
 
-    ################### SECOND STAGE - OPTIMIZATION OF ALIGNMENT ###################
+    return src_results, dst_results, tform_align
+
+def optimize(src_results, dst_results, tform_align):
+
     opt_config = {
         # dst
         'fitness_sigma': 50,
@@ -205,7 +189,6 @@ if __name__ == '__main__':
 
     ################# data point correlation (for averaging motion) ################
     X_correlation = optali.data_point_correlation(X_aligned, correlation_sigma=opt_config['correlation_sigma'], normalize=True)
-
     ################################# Optimization #################################
     X_optimized, optimization_log = optali.optimize_alignment( X0=X_aligned, X_correlation=X_correlation,
                                                                gradient_map=grd_map, fitness_map=fit_map,
@@ -213,10 +196,69 @@ if __name__ == '__main__':
                                                                verbose=True)
     print ('total optimization time: {:.5f}'.format( time.time() - opt_tic ) )
 
-    tform_opt = skimage.transform.PiecewiseAffineTransform()
+    tform_opt = skimage.transform._geometric.PiecewiseAffineTransform()
     tform_opt.estimate(X_aligned, X_optimized)
 
     # TODO: store tf matrix
+
+    return X_aligned, X_optimized, grd_map, tform_opt
+
+def _to_ndimage_mode(mode):
+    """Convert from `numpy.pad` mode name to the corresponding ndimage mode."""
+    mode_translation_dict = dict(constant='constant', edge='nearest',
+                                 symmetric='reflect', reflect='mirror',
+                                 wrap='wrap')
+    if mode not in mode_translation_dict:
+        raise ValueError(
+            ("Unknown mode: '{}', or cannot translate mode. The "
+             "mode should be one of 'constant', 'edge', 'symmetric', "
+             "'reflect', or 'wrap'. See the documentation of numpy.pad for"
+             "more info.").format(mode))
+    return _fix_ndimage_mode(mode_translation_dict[mode])
+
+
+def _fix_ndimage_mode(mode):
+    # SciPy 1.6.0 introduced grid variants of constant and wrap which
+    # have less surprising behavior for images. Use these when available
+    grid_modes = {'constant': 'grid-constant', 'wrap': 'grid-wrap'}
+    mode = grid_modes.get(mode, mode)
+    return mode
+
+def mapper(image, inverse_map, output_shape, mode, cval):
+    order = 0 if image.dtype == bool else 1
+
+    if order > 0:
+        image = sksh.convert_to_float(image, True)
+        if image.dtype == np.float16:
+            image = image.astype(np.float32)
+
+    input_shape = np.array(image.shape)
+    output_shape = sksh.safe_as_int(output_shape)
+
+    warped = None
+
+    def coord_map(*args):
+        np.set_printoptions(threshold=sys.maxsize)
+        print(*args)
+        return inverse_map(*args)
+
+    if len(input_shape) == 3 and len(output_shape) == 2:
+
+        output_shape = (output_shape[0], output_shape[1], input_shape[2])
+
+    coords = skimage.transform.warp_coords(coord_map, output_shape)
+
+    prefilter = order > 1
+    ndi_mode = _to_ndimage_mode(mode)
+
+    warped = ndi.map_coordinates(image, coords, prefilter=prefilter,
+                                 mode=ndi_mode, order=order, cval=cval)
+
+    skimage.transform._warps._clip_warp_output(image, warped, order, mode, cval, True)
+
+    return warped
+
+def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map):
 
     '''
     Note on how to generate X_aligned and X_optimized from tforms:
@@ -225,23 +267,44 @@ if __name__ == '__main__':
     print ( np.allclose(X_optimized , tform_opt(X_aligned)) )
     '''
 
-    if visualize or save_to_file:
-        ###################### warpings of the source image ######################
-        # warp source image according to alignment tform_align
-        src_img_aligned = skimage.transform.warp(src_results['image'], tform_align.inverse, #_inv_matrix,
-                                                 output_shape=(dst_results['image'].shape),
-                                                 preserve_range=True, mode='constant', cval=127)
+    ###################### warpings of the source image ######################
+    # warp source image according to alignment tform_align
+    src_img_aligned = skimage.transform.warp(src_results['image'], tform_align.inverse, #_inv_matrix,
+                                             output_shape=(dst_results['image'].shape),
+                                             preserve_range=True, mode='constant', cval=127)
 
-        # warp aligned source image according to optimization
-        src_img_optimized = skimage.transform.warp(src_img_aligned, tform_opt.inverse,
-                                                   output_shape=(dst_results['image'].shape),
-                                                   preserve_range=True, mode='constant', cval=127)
-
-
-        ########## save/plotting alignment, motion of points and optimized alignment
-        optplt.plot_alignment_motion_optimized(dst_results['image'],
-                                               src_img_aligned, src_img_optimized, grd_map,
-                                               X_aligned, X_optimized, save_to_file)
+    # warp aligned source image according to optimization
+    # src_img_optimized = skimage.transform.warp(src_img_aligned, tform_opt.inverse,
+    #                                             output_shape=(dst_results['image'].shape),
+    #                                             preserve_range=True, mode='constant', cval=127)
+    src_img_optimized = mapper(src_img_aligned, tform_opt.inverse, (dst_results['image']).shape, 'constant', 127)
+    ########## save/plotting alignment, motion of points and optimized alignment
+    optplt.plot_alignment_motion_optimized(dst_results['image'],
+                                            src_img_aligned, src_img_optimized, grd_map,
+                                            X_aligned, X_optimized)
 
     # TODO: calculate final matrix
     # TODO: store final matrix
+
+def main():
+    img_src, img_dst = initialise()
+    src_results, dst_results, tform_align = initial_alignment(img_src, img_dst)
+    X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
+    visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map)
+
+################################################################################
+
+if __name__ == '__main__':
+    '''
+    Parameters and Options:
+    -----------------------
+    --img_src 'the-address-name-to-sensor-map'
+    --img_dst 'the-address-name-to-layout-map'
+
+    Examples:
+    ---------
+    python demo.py --img_src 'map_sample/F5_04.png' --img_dst 'map_sample/F5_layout.png'
+    python demo.py --img_src 'map_sample/F5_04.png' --img_dst 'map_sample/F5_layout.png'
+    '''
+
+    main()
