@@ -2,5 +2,10 @@
     "files.associations": {
         "iosfwd": "cpp",
         "dense": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "data",
+        "msg",
+        "status"
+    ]
 }

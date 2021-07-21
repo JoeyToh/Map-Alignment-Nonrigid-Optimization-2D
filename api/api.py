@@ -1,9 +1,12 @@
-from flask import Flask, json, jsonify, make_response
+from flask import Flask, json, jsonify, make_response, abort
 from flask.globals import request
 import os
 
+from flask.signals import message_flashed
+
 app = Flask(__name__)
 app.config["DEBUG"] = True
+
 
 ################################### STORAGE ###################################
 
@@ -14,8 +17,13 @@ def store(data, relative_path_to_file):
     dirname = os.path.dirname(__file__)
     file = os.path.join(dirname, relative_path_to_file)
 
-    with open(file, "w") as f:
-        json.dump(data, f)
+    try:
+        with open(file, "r+") as f:
+            json.dump(data, f)
+            f.close()
+        return create_msg(1, 201, "File successfully stored.")
+    except FileNotFoundError:
+        return create_msg(0, 400, "File not found.")
 
 def retrieve(relative_path_to_file):
     '''
@@ -23,30 +31,38 @@ def retrieve(relative_path_to_file):
     '''
     dirname = os.path.dirname(__file__)
     file = os.path.join(dirname, relative_path_to_file)
-    with open(file) as f:
-        data = json.load(f)
-    return data
+    try:
+        with open(file) as f:
+            data = json.load(f)
+            f.close()
+        return create_msg(1, 200, data)
+    except ValueError:
+        return create_msg(0, 400, "File is empty.")
+    except FileNotFoundError:
+        return create_msg(0, 400, "File not found.")
 
 #################################### ERROR ####################################
 
 @app.errorhandler(404)
-def not_found(error):
-    return make_response(jsonify({'error': error}), 404)
+def not_found(e):
+    return jsonify(error=str(e)), 404
 
 @app.errorhandler(400)
-def bad_request(error):
-    return make_response(jsonify({'error': error}), 400)
+def bad_request(e):
+    return jsonify(error=str(e)), 400
 
 ################################## RESPONSE ###################################
 
 def response(data, code=200):
     return jsonify(data), code
 
+def create_msg(status, code, msg):
+    return {"status": status, "code": code, "msg": msg}
+
 #################################### MAPS #####################################
 
 def get_maps():
-    maps = retrieve('storage/maps/maps.json')
-    return response(maps)
+    return retrieve('storage/maps/maps.json')
 
 def store_maps(maps):
     '''
@@ -97,24 +113,37 @@ def store_maps(maps):
     ]
 
     '''
-    store(maps, 'storage/maps/maps.json')
-    updated_maps = retrieve('storage/maps/maps.json')
-    return response(updated_maps, 201)
+
+    attributes = ("map-number", "path_to_file", "_id", "fleet_name", "floor_name", "translation", "rotation", "resolution", "axis", "createdAt", "updatedAt")
+    if all(key in maps[0] for key in attributes) and all(key in maps[1] for key in attributes):
+        return store(maps, 'storage/maps/maps.json')
+    else:
+        return create_msg(0, 400, "Missing map details.")
 
 @app.route('/api/v1/data/maps', methods=['POST', 'GET'])
 def update_maps():
     if request.method == 'POST':
-        return store_maps(request.json)
+        x = store_maps(request.json)
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"], code=x["code"])
+
     else:
-        return get_maps()
+        x = get_maps()
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"])
 
 ################################### POINTS ####################################
 
 def get_points():
-    points = retrieve('storage/alignment/input/points/points.json')
-    return response(points)
+    return retrieve('storage/alignment/input/points.json')
 
-def delete_point(point):
+def delete(point):
     '''
     Input example:
     {
@@ -122,51 +151,60 @@ def delete_point(point):
         "point" : "(1, 2)"
     }
     '''
-    current_pts = retrieve('storage/alignment/input/points/points.json')
-    map_no = point["map-number"]
-    point_to_delete = point["point"]
-    new_pts = []
+    attributes = ("map-number", "point")
+    if not all(key in point for key in attributes):
+        return create_msg(0, 400, "Missing map ID or point.")
 
-    for i in current_pts:
-        if i["map-number"] == map_no:
-            pts = i["points"]
-            idx = pts.index(point_to_delete)
-            del pts[idx]
+    else:
+        data = retrieve('storage/alignment/input/points.json')
+        if data["status"] == 0:
+            return data
 
-            if map_no == 1:
-                other_pts = current_pts[1]["points"]
-                del other_pts[idx]
+        else:
+            current_pts = data["msg"]
+            map_no = point["map-number"]
+            point_to_delete = point["point"]
+            new_pts = []
 
-                map_1 = {
-                    "map-number" : 1,
-                    "points" : pts
-                }
-                map_2 = {
-                    "map-number" : 2,
-                    "points" : other_pts
-                }
+            for i in current_pts:
+                if i["map-number"] == map_no:
+                    pts = i["points"]
+                    idx = pts.index(point_to_delete)
+                    del pts[idx]
 
-                new_pts.extend([map_1, map_2])
+                    if map_no == 1:
+                        other_pts = current_pts[1]["points"]
+                        del other_pts[idx]
 
-            else:
-                other_pts = current_pts[0]["points"]
-                del other_pts[idx]
+                        map_1 = {
+                            "map-number" : 1,
+                            "points" : pts
+                        }
+                        map_2 = {
+                            "map-number" : 2,
+                            "points" : other_pts
+                        }
 
-                map_1 = {
-                    "map-number" : 1,
-                    "points" : other_pts
-                }
-                map_2 = {
-                    "map-number" : 2,
-                    "points" : pts
-                }
+                        new_pts.extend([map_1, map_2])
 
-                new_pts.extend([map_1, map_2])
+                    else:
+                        other_pts = current_pts[0]["points"]
+                        del other_pts[idx]
 
-            break
+                        map_1 = {
+                            "map-number" : 1,
+                            "points" : other_pts
+                        }
+                        map_2 = {
+                            "map-number" : 2,
+                            "points" : pts
+                        }
 
-    store(new_pts, 'storage/alignment/input/points/points.json')
-    return response(new_pts)
+                        new_pts.extend([map_1, map_2])
+
+                    break
+
+            return store(new_pts, 'storage/alignment/input/points.json')
 
 def add_points(points):
     '''
@@ -182,120 +220,264 @@ def add_points(points):
      }
     ]
     '''
-    current_pts = retrieve('storage/alignment/input/points/points.json')
-    map_1_old = current_pts[0]
-    map_2_old = current_pts[1]
-    map_1_to_add = points[0]
-    map_2_to_add = points[1]
+    attributes = ("map-number", "points")
+    if not ( all(key in points[0] for key in attributes) and all(key in points[1] for key in attributes) ):
+        return create_msg(0, 400, "Missing map ID or points.")
 
-    assert(map_1_old["map-number"] == map_1_to_add["map-number"]) # ensure that points are added to the correct map
-    assert(map_2_old["map-number"] == map_2_to_add["map-number"]) # ensure that points are added to the correct map
-    assert(len(map_1_to_add["points"]) == len(map_2_to_add["points"])) # ensure that same number of points are added for each map
+    data = retrieve('storage/alignment/input/points.json')
 
-    points_new = []
-    map_1_new = {
-        "map-number" : 1,
-        "points" : map_1_old["points"].extend(map_1_to_add["points"])
-    }
-    map_2_new = {
-        "map-number" : 2,
-        "points" : map_2_old["points"].extend(map_2_to_add["points"])
-    }
-    points_new.extend(map_1_new, map_2_new)
-    store(points_new, 'storage/alignment/input/points/points.json')
+    if data["status"] == 0 and data["msg"] == "File not found.":
+        return data
 
-    assert(len(map_1_new["points"]) == len(map_2_new["points"])) # ensure that the total number of points are the same for each map
-
-    return response(points_new)
-
-@app.route('/api/v1/data/alignment/input/points', methods=['PATCH', 'DELETE', 'GET'])
-def update_points():
-    if request.method == 'PATCH':
-        return add_points(request.json)
-    elif request.method == 'DELETE':
-        return delete_point(request.json)
     else:
-        return get_points()
+        map_1_to_add = points[0]
+        map_2_to_add = points[1]
+
+        if not len(map_1_to_add["points"]) == len(map_2_to_add["points"]):
+
+            return create_msg(0, 400, "Differing number of corresponding points from each map.")
+
+        elif len(map_1_to_add["points"]) <= 0 or len(map_2_to_add["points"]) <= 0:
+
+            return create_msg(0, 400, "Number of input points cannot be less than 1.")
+
+        points_new = []
+
+        if data["status"] == 1:
+            current_pts = data["msg"]
+            map_1 = current_pts[0]
+            map_2 = current_pts[1]
+
+            if not ( (map_1["map-number"] == map_1_to_add["map-number"] or map_2["map-number"] == map_1_to_add["map-number"])
+                and (map_1["map-number"] == map_2_to_add["map-number"] or map_2["map-number"] == map_2_to_add["map-number"]) ):
+
+                return create_msg(0, 400, "Mismatching maps. Maps that points are selected from should have same IDs as maps stored in database.")
+
+            else:
+                map_1["points"].extend(map_1_to_add["points"])
+                map_2["points"].extend(map_2_to_add["points"])
+                points_new.extend([map_1, map_2])
+        else:
+            points_new = points
+
+        store(points_new, 'storage/alignment/input/points.json')
+
+        if not len(points_new[0]["points"]) == len(points_new[1]["points"]):
+            return create_msg(0, 400, "Differing number of corresponding points from each map.")
+        else:
+            return create_msg(1, 201, "Points successfully updated.")
+
+@app.route('/api/v1/data/alignment/input/points', methods=['POST', 'GET'])
+def update_points():
+    if request.method == 'POST':
+        x = add_points(request.json)
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"], code=x["code"])
+    else:
+        x = get_points()
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"])
+
+@app.route('/api/v1/data/alignment/input/points/delete', methods=['POST'])
+def delete_points():
+    x = delete(request.json)
+
+    if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+    else:
+            return response(x["msg"])
 
 ############################## ALIGNMENT PARAMS ###############################
 
-def get_alignment_parameters():
-    params = retrieve('storage/alignment/input/parameters.json')
-    return response(params)
+def get_ave_sym_dist():
+    return retrieve('storage/alignment/input/ave_sym_dist.json')
 
-def update_alignment_parameters(params):
+def update_ave_sym_dist(value):
     '''
     Input example:
     {
-        "param-1": 50,
-        "param-2": 0.2
+        "ave_sym_dist": 0.1,
     }
     '''
-    store(params, 'storage/alignment/input/parameters.json')
-    updated_params = retrieve('storage/alignment/input/parameters.json')
-    return response(updated_params)
-
-@app.route('/api/v1/data/alignment/input/parameters', methods=['PUT', 'GET'])
-def alignment_parameters():
-    if request.method == 'PUT':
-        update_alignment_parameters()
+    attributes = ("ave_sym_dist")
+    if not all(key in value for key in attributes):
+        return store(value, 'storage/alignment/input/ave_sym_dist.json')
     else:
-        get_alignment_parameters()
+        return create_msg(0, 400, "Missing parameter value.")
+
+@app.route('/api/v1/data/alignment/input/parameters/ave_sym_dist', methods=['POST', 'GET'])
+def ave_sym_dist():
+    if request.method == 'POST':
+        x = update_ave_sym_dist(request.json)
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"], code=x["code"])
+    else:
+        x = get_ave_sym_dist()
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"])
+
+
+def get_max_num_iter():
+    return retrieve('storage/alignment/input/max_num_iter.json')
+
+def update_max_num_iter(value):
+    '''
+    Input example:
+    {
+        "max_num_iter": 50,
+    }
+    '''
+    attributes = ("max_num_iter")
+    if not all(key in value for key in attributes):
+        return store(value, 'storage/alignment/input/max_num_iter.json')
+    else:
+        return create_msg(0, 400, "Missing parameter value.")
+
+@app.route('/api/v1/data/alignment/input/parameters/max_num_iterations', methods=['POST', 'GET'])
+def max_num_iterations():
+    if request.method == 'POST':
+        x = update_max_num_iter(request.json)
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"], code=x["code"])
+    else:
+        x = get_max_num_iter()
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"])
 
 ############################## ALIGNMENT MATRIX ###############################
 
 @app.route('/api/v1/data/alignment/output/matrix', methods=['GET'])
 def get_alignment_matrix():
+
     # Call Homography.cc
-    matrix = retrieve('storage/alignment/output/matrix.json')
-    return response(matrix)
+
+    x = retrieve('storage/alignment/output/matrix.json')
+
+    if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+    else:
+        return response(x["msg"], code=x["code"])
 
 ############################# OPTIMIZATION PARAMS #############################
 
-def get_optimization_parameters():
-    params = retrieve('storage/optimization/input/parameters.json')
-    return response(params)
+def get_min_dist():
+    return retrieve('storage/optimization/input/min_dist.json')
 
-def update_optimization_parameters(params):
+def update_min_dist(value):
     '''
     Input example:
     {
-        "param-1": 50,
-        "param-2": 0.2
+        "min_dist": 0.1,
     }
     '''
-    store(params, 'storage/optimization/input/parameters.json')
-    updated_params = retrieve('storage/optimization/input/parameters.json')
-    return response(updated_params)
-
-@app.route('/api/v1/data/optimization/input/parameters', methods=['PUT', 'GET'])
-def optimization_parameters():
-    if request.method == 'PUT':
-        update_optimization_parameters()
+    attributes = ("min_dist")
+    if not all(key in value for key in attributes):
+        return store(value, 'storage/optimization/input/min_dist.json')
     else:
-        get_optimization_parameters()
+        return create_msg(0, 400, "Missing parameter value.")
+
+@app.route('/api/v1/data/optimization/input/parameters/min_dist', methods=['POST', 'GET'])
+def min_dist():
+    if request.method == 'POST':
+        x = update_min_dist(request.json)
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"], code=x["code"])
+    else:
+        x = get_min_dist()
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"])
+
+def get_max_corners():
+    return retrieve('storage/optimization/input/max_corners.json')
+
+def update_max_corners(value):
+    '''
+    Input example:
+    {
+        "min_dist": 0.1,
+    }
+    '''
+    attributes = ("max_corners")
+    if not all(key in value for key in attributes):
+        return store(value, 'storage/optimization/input/max_corners.json')
+    else:
+        return create_msg(0, 400, "Missing parameter value.")
+
+@app.route('/api/v1/data/optimization/input/parameters/max_corners', methods=['POST', 'GET'])
+def max_corners():
+    if request.method == 'POST':
+        x = update_max_corners(request.json)
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"], code=x["code"])
+    else:
+        x = get_max_corners()
+
+        if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+        else:
+            return response(x["msg"])
 
 ############################# OPTIMIZATION MATRIX #############################
 
 @app.route('/api/v1/data/optimization/output/matrix', methods=['GET'])
 def get_optimization_matrix():
-    matrix = retrieve('storage/optimization/output/optimize/matrix.json')
-    return response(matrix)
+    x = retrieve('storage/optimization/output/matrix.json')
+
+    if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+    else:
+            return response(x["msg"], code=x["code"])
 
 ################################# GRADIENT MAP ################################
 
-@app.route('/api/v1/data/optimization/output/matrix', methods=['GET'])
-def get_optimization_matrix():
+@app.route('/api/v1/data/optimization/output/gradient', methods=['GET'])
+def get_gradient_map():
+
     # Call Optimizer.py
-    matrix = retrieve('storage/optimization/output/gradient/gmap.json')
-    return response(matrix)
+    x = retrieve('storage/optimization/output/gmap.json')
+
+    if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+    else:
+            return response(x["msg"], code=x["code"])
 
 ################################# FINAL MATRIX ################################
 
-@app.route('/api/v1/data/optimization/output/final', methods='GET')
+@app.route('/api/v1/data/optimization/output/final', methods=['GET'])
 def get_final_matrix():
-    matrix = retrieve('storage/optimization/output/final/tfmatrix.json')
-    return response(matrix)
+    x = retrieve('storage/optimization/output/finalmatrix.json')
+
+    if x["status"] == 0:
+            abort(x["code"], description=x["msg"])
+    else:
+            return response(x["msg"], code=x["code"])
 
 ###############################################################################
 

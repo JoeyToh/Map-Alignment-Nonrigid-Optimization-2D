@@ -16,6 +16,7 @@ set(CMAKE_TARGET_DEFINITIONS_CXX
 
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
+  "/usr/include/jsoncpp"
   "/usr/local/include"
   "/usr/include/eigen3"
   )

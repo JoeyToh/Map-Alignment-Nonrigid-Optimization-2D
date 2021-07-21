@@ -217,6 +217,16 @@ CMakeFiles/homography.dir/Homography.cc.o: /usr/include/eigen3/Eigen/src/plugins
 CMakeFiles/homography.dir/Homography.cc.o: /usr/include/eigen3/Eigen/src/plugins/CommonCwiseUnaryOps.h
 CMakeFiles/homography.dir/Homography.cc.o: /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h
 CMakeFiles/homography.dir/Homography.cc.o: /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseUnaryOps.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/allocator.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/autolink.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/config.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/features.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/forwards.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/json.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/reader.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/value.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/version.h
+CMakeFiles/homography.dir/Homography.cc.o: /usr/include/jsoncpp/json/writer.h
 CMakeFiles/homography.dir/Homography.cc.o: /usr/local/include/ceres/autodiff_cost_function.h
 CMakeFiles/homography.dir/Homography.cc.o: /usr/local/include/ceres/autodiff_local_parameterization.h
 CMakeFiles/homography.dir/Homography.cc.o: /usr/local/include/ceres/ceres.h

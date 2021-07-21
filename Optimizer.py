@@ -73,9 +73,8 @@ def get_alignment_matrix():
     return tf_matrix
 
 def get_parameters():
-    params = retrieve('api/storage/optimization/input/parameters.json')
-    min_dist = params["min_dist"]
-    max_corners = params["max_corners"]
+    min_dist = retrieve('api/storage/optimization/input/min_dist.json')
+    max_corners = retrieve('api/storage/optimization/input/max_corners.json')
     return min_dist, max_corners
 
 def initialise():

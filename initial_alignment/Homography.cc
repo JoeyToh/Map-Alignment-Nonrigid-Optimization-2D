@@ -2,6 +2,8 @@
 #include "glog/logging.h"
 #include <fstream>
 #include <tuple>
+#include <json/json.h>
+#include <algorithm>
 
 typedef Eigen::NumTraits<double> EigenDouble;
 typedef Eigen::MatrixXd Mat;
@@ -364,6 +366,15 @@ bool EstimateHomography2DFromCorrespondences(const Mat& x1, const Mat& x2,
 
 using namespace std;
 
+string removeCharacters(string S, char c) {
+
+    S.erase(remove(
+                S.begin(), S.end(), c),
+            S.end());
+
+    return S;
+}
+
 Mat initialise_input_matrix(string arr, int num) {
     string s = ", ";
     Mat mat(2, num);
@@ -395,96 +406,99 @@ Mat initialise_input_matrix(string arr, int num) {
     return mat;
 }
 
-// tuple<Mat, Mat> pointsParser(string path, Json::Reader reader) {
-//   ifstream file(path);
-//   Json::Value pointsJson;
-//   reader.parse(file, pointsJson);
-//   string points1 = pointsJson[0]["points"].toStyledString();
-//   string points2 = pointsJson[1]["points"].toStyledString();
-//   points1 = removeCharacters(points1, '"');
-//   points2 = removeCharacters(points2, '"');
-//   string input = points1 + " " + points2;
-//   string delimiter = "]";
-//   int pos = input.find(delimiter);
-//   string arr1 = input.substr(2, pos - 3);
-//   string temp = input.substr(pos + 5);
-//   string arr2 = temp.substr(0, temp.length() - 3);
-//   int count = std::count(arr1.begin(), arr1.end(), ',');
-//   double num_points = ceil(count/2.0);
+tuple<Mat, Mat> pointsParser(Json::Reader reader) {
+  ifstream file("/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/api/storage/alignment/input/points.json");
+  Json::Value pointsJson;
+  reader.parse(file, pointsJson);
+  string points1 = pointsJson[0]["points"].toStyledString();
+  string points2 = pointsJson[1]["points"].toStyledString();
+  points1 = removeCharacters(points1, '"');
+  points2 = removeCharacters(points2, '"');
 
-//   Mat x1 = initialise_input_matrix(arr1, num_points);
-//   Mat x2 = initialise_input_matrix(arr2, num_points);
-//   file.close();
+  string input = points1 + " " + points2;
+  string delimiter = "]";
+  int pos = input.find(delimiter);
+  string arr1 = input.substr(2, pos - 3);
+  string temp = input.substr(pos + 5);
+  string arr2 = temp.substr(0, temp.length() - 3);
+  int count = std::count(arr1.begin(), arr1.end(), ',');
+  double num_points = ceil(count/2.0);
 
-//   return {x1, x2};
-// }
+  Mat x1 = initialise_input_matrix(arr1, num_points);
+  Mat x2 = initialise_input_matrix(arr2, num_points);
+  file.close();
 
-// tuple<int, double> paramsParser(string path, Json::Reader reader) {
-//   ifstream file(path);
-//   Json::Value paramsJson;
-//   reader.parse(file, paramsJson);
-//   int max_num_int = paramsJson["max_num_iterations"].asInt();
-//   double ave_sym_dist = paramsJson["ave_sym_dist"].asDouble();
-//   file.close();
+  return {x1, x2};
+}
 
-//   return {max_num_int, ave_sym_dist};
-// }
+tuple<int, double> paramsParser(Json::Reader reader) {
+  ifstream dist("/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/api/storage/alignment/input/ave_sym_dist.json");
+  Json::Value distJson;
+  reader.parse(dist, distJson);
+  double ave_sym_dist = paramsJson["ave_sym_dist"].asDouble();
+  dist.close()
 
-// void store(Mat3 matrix, string path) {
-//   Json::Value mat;
-//   Json::Value vec(Json::arrayValue);
+  ifstream iter("/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/api/storage/alignment/input/max_num_iter.json");
+  Json::Value iterJson;
+  reader.parse(iter, iterJson)
+  int max_num_int = iterJson["max_num_iterations"].asInt();
+  iter.close();
 
-//   for (int i = 0; i < matrix.rows(); i++) {
-//       Json::Value row(Json::arrayValue);
+  return {max_num_int, ave_sym_dist};
+}
 
-//       for (int j = 0; j < matrix.cols(); j++) {
-//           row.append(Json::Value(matrix(i, j)));
-//       }
+void store(Mat3 matrix, string path) {
+  Json::Value mat;
+  Json::Value vec(Json::arrayValue);
 
-//       vec.append(row);
-//   }
+  for (int i = 0; i < matrix.rows(); i++) {
+      Json::Value row(Json::arrayValue);
 
-//   mat["matrix"] = vec;
+      for (int j = 0; j < matrix.cols(); j++) {
+          row.append(Json::Value(matrix(i, j)));
+      }
 
-//   ofstream file(path);
-//   Json::StyledStreamWriter writer;
-//   writer.write(file, mat);
-// }
+      vec.append(row);
+  }
+
+  mat["matrix"] = vec;
+  ofstream file(path);
+  Json::StyledStreamWriter writer;
+  writer.write(file, mat);
+}
 
 int run(int argc, char** argv) {
   FLAGS_logtostderr = 1;
   google::InitGoogleLogging(argv[0]);
 
   // Parsing input points into matrices
-  string input;
-  getline(cin, input);
-  string delimiter = "]";
-  int pos = input.find(delimiter);
-  string arr1 = input.substr(1, pos - 1);
-  string temp = input.substr(pos + 3);
-  string arr2 = temp.substr(0, temp.length() - 1);
+  // string input;
+  // getline(cin, input);
+  // string delimiter = "]";
+  // int pos = input.find(delimiter);
+  // string arr1 = input.substr(1, pos - 1);
+  // string temp = input.substr(pos + 3);
+  // string arr2 = temp.substr(0, temp.length() - 1);
 
-  int count = std::count(arr1.begin(), arr1.end(), ',');
-  double num_points = ceil(count/2.0);
-  Mat x1 = initialise_input_matrix(arr1, num_points);
-  Mat x2 = initialise_input_matrix(arr2, num_points);
+  // int count = std::count(arr1.begin(), arr1.end(), ',');
+  // double num_points = ceil(count/2.0);
+  // Mat x1 = initialise_input_matrix(arr1, num_points);
+  // Mat x2 = initialise_input_matrix(arr2, num_points);
 
-  std::cout << "Matrix 1:\n" << x1 << std::endl;
-  std::cout << "Matrix 2:\n" << x2 << std::endl;
+  Json::Reader reader;
 
-  // Json::Reader reader;
+  // Read input points
+  auto [x1, x2] = pointsParser(reader);
 
-  // // Read input points
-  // auto [x1, x2] = pointsParser("/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/api/storage/alignment/input/points/points.json", reader);
-
-  // // Read input parameters
-  // auto [max_num_int, ave_sym_dist] = paramsParser("/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/api/storage/alignment/input/parameters/parameters.json", reader);
+  // Read input parameters
+  auto [max_num_int, ave_sym_dist] = paramsParser(reader);
 
   // Defining parameters
   Mat3 estimated_matrix;
   EstimateHomographyOptions options;
-  options.expected_average_symmetric_distance = 1e-30; // ave_sym_dist;
-  // options.max_num_iterations = max_num_int;
+  // options.expected_average_symmetric_distance = 1e-16;
+  options.expected_average_symmetric_distance = ave_sym_dist;
+  options.max_num_iterations = max_num_int;
 
   // Estimate matrix
   EstimateHomography2DFromCorrespondences(x1, x2, options, &estimated_matrix);
@@ -492,11 +506,11 @@ int run(int argc, char** argv) {
   std::cout << "Estimated matrix:\n" << estimated_matrix << "\n";
 
   // Storage
-  ofstream file;
-  file.open("data.txt");
-  file << estimated_matrix << endl;
-  file.close();
-  // store(estimated_matrix, "api/storage/alignment/output/matrix.json");
+  // ofstream file;
+  // file.open("data.txt");
+  // file << estimated_matrix << endl;
+  // file.close();
+  store(estimated_matrix, "/home/hopermf/Desktop/intern_joey/Map-Alignment-Nonrigid-Optimization-2D/api/storage/alignment/output/matrix.json");
 
   return EXIT_SUCCESS;
 }
@@ -504,12 +518,6 @@ int run(int argc, char** argv) {
 int main(int argc, char** argv) {
   return run(argc, argv);
 }
-
-// extern "C" {
-//     int My_Function(int argc, char** argv) {
-//         return main(argc, argv);
-//     }
-// }
 
   // Test values for input: ** do not change **
   // For magni_chart and mir_5cm: [(480, 231), (228, 219), (549, 472), (205, 461)] [(476, 710), (960, 710), (332, 240), (984, 248)]

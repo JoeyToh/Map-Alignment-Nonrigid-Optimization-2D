@@ -218,6 +218,16 @@ CMakeFiles/homography.dir/Homography.cc.o
  /usr/include/eigen3/Eigen/src/plugins/CommonCwiseUnaryOps.h
  /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h
  /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseUnaryOps.h
+ /usr/include/jsoncpp/json/allocator.h
+ /usr/include/jsoncpp/json/autolink.h
+ /usr/include/jsoncpp/json/config.h
+ /usr/include/jsoncpp/json/features.h
+ /usr/include/jsoncpp/json/forwards.h
+ /usr/include/jsoncpp/json/json.h
+ /usr/include/jsoncpp/json/reader.h
+ /usr/include/jsoncpp/json/value.h
+ /usr/include/jsoncpp/json/version.h
+ /usr/include/jsoncpp/json/writer.h
  /usr/local/include/ceres/autodiff_cost_function.h
  /usr/local/include/ceres/autodiff_local_parameterization.h
  /usr/local/include/ceres/ceres.h

@@ -6,5 +6,5 @@ CXX_FLAGS =   -std=gnu++14
 
 CXX_DEFINES = -DCERES_EXPORT_INTERNAL_SYMBOLS -DGFLAGS_IS_A_DLL=0
 
-CXX_INCLUDES = -isystem /usr/local/include -isystem /usr/include/eigen3 
+CXX_INCLUDES = -I/usr/include/jsoncpp -isystem /usr/local/include -isystem /usr/include/eigen3 
 
