@@ -8,7 +8,7 @@ import scipy
 from scipy import ndimage as ndi
 new_paths = [
     u'../arrangement/',
-    u'../Map-Alignment-2D',
+    u'../Map-Alignment-2D'
 ]
 for path in new_paths:
     if not( path in sys.path):
@@ -29,12 +29,14 @@ import map_alignment.mapali_plotting as maplt
 import optimize_alignment.optimize_alignment as optali
 import optimize_alignment.plotting as optplt
 
+
 def retrieve(relative_path_to_file):
     '''
     Returns requested json file as dictionary
     '''
-    dirname = os.path.dirname(os.path.abspath(__file__))
-    file = os.path.join(dirname, relative_path_to_file)
+    dirname = os.path.dirname(__file__)
+    parent = os.path.split(dirname)[0]
+    file = os.path.join(parent, relative_path_to_file)
     with open(file) as f:
         data = json.load(f)
     return data
@@ -43,8 +45,9 @@ def store(data, relative_path_to_file):
     '''
     Converts dictionary into JSON format and stores it in file
     '''
-    dirname = os.path.dirname(os.path.abspath(__file__))
-    file = os.path.join(dirname, relative_path_to_file)
+    dirname = os.path.dirname(__file__)
+    parent = os.path.split(dirname)[0]
+    file = os.path.join(parent, relative_path_to_file)
     with open(file, "w") as f:
         json.dump(data, f)
 
@@ -117,30 +120,30 @@ def initial_alignment(img_src, img_dst):
     ################################# Map Alignment ################################
 
     ########## image loading, SKIZ, distance transform and trait detection
-    src_results, src_lnl_t = mapali._lock_n_load(img_src, lnl_config)
-    dst_results, dst_lnl_t = mapali._lock_n_load(img_dst, lnl_config)
+    # src_results, src_lnl_t = mapali._lock_n_load(img_src, lnl_config)
+    # dst_results, dst_lnl_t = mapali._lock_n_load(img_dst, lnl_config)
 
-    dirname = os.path.dirname(__file__)
-    filename = os.path.join(dirname, 'initial_alignment/build/data.txt')
-    mat = ''
+    # dirname = os.path.dirname(__file__)
+    # filename = os.path.join(dirname, 'initial_alignment/build/data.txt')
+    # mat = ''
 
-    with open(filename) as f: # load initial alignment matrix
-        line = f.readline()
-        while line:
-            mat += line
-            line = f.readline()
-
-    np.set_printoptions(suppress=True)
-    tform = initalise_alignment_matrix(mat)
-    tform_align = skimage.transform._geometric.ProjectiveTransform(matrix=tform)
-
-    # src, dst = get_maps()
-    # src_results, src_lnl_t = mapali._lock_n_load(src["path_to_file"], lnl_config)
-    # dst_results, dst_lnl_t = mapali._lock_n_load(dst["path_to_file"], lnl_config)
+    # with open(filename) as f: # load initial alignment matrix
+    #     line = f.readline()
+    #     while line:
+    #         mat += line
+    #         line = f.readline()
 
     # np.set_printoptions(suppress=True)
-    # tform = get_alignment_matrix()
+    # tform = initalise_alignment_matrix(mat)
     # tform_align = skimage.transform._geometric.ProjectiveTransform(matrix=tform)
+
+    src, dst = get_maps()
+    src_results, src_lnl_t = mapali._lock_n_load(src["path_to_file"], lnl_config)
+    dst_results, dst_lnl_t = mapali._lock_n_load(dst["path_to_file"], lnl_config)
+
+    np.set_printoptions(suppress=True)
+    tform = get_alignment_matrix()
+    tform_align = skimage.transform._geometric.ProjectiveTransform(matrix=tform)
 
     return src_results, dst_results, tform_align
 
