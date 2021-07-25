@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import sys
 import os
-from numpy.lib.arraysetops import isin
 
 import scipy
 from scipy import ndimage as ndi
@@ -34,22 +33,22 @@ def retrieve(relative_path_to_file):
     '''
     Returns requested json file as dictionary
     '''
-    dirname = os.path.dirname(__file__)
+    dirname = os.path.dirname(os.path.abspath(__file__))
     parent = os.path.split(dirname)[0]
     file = os.path.join(parent, relative_path_to_file)
     with open(file) as f:
         data = json.load(f)
     return data
 
-def store(data, relative_path_to_file):
+def store(data, relative_path_to_file, encodingType=None):
     '''
     Converts dictionary into JSON format and stores it in file
-    '''
-    dirname = os.path.dirname(__file__)
+    ''' 
+    dirname = os.path.dirname(os.path.abspath(__file__))
     parent = os.path.split(dirname)[0]
     file = os.path.join(parent, relative_path_to_file)
     with open(file, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, default=encodingType)
 
 def get_maps():
     maps = retrieve('api/storage/maps/maps.json')
@@ -58,17 +57,17 @@ def get_maps():
 
     return src, dst
 
-def initalise_alignment_matrix(str):
-    tf_matrix = np.empty((3, 3))
-    arr = str.splitlines()
+# def initialise_alignment_matrix(str):
+#     tf_matrix = np.empty((3, 3))
+#     arr = str.splitlines()
 
-    for i in range(len(arr)):
-        x = arr[i].strip().split()
+#     for i in range(len(arr)):
+#         x = arr[i].strip().split()
 
-        for j in range(len(x)):
-            tf_matrix[i][j] = x[j]
+#         for j in range(len(x)):
+#             tf_matrix[i][j] = x[j]
 
-    return tf_matrix
+#     return tf_matrix
 
 def get_alignment_matrix():
     m = retrieve('api/storage/alignment/output/matrix.json')["matrix"]
@@ -78,34 +77,34 @@ def get_alignment_matrix():
 def get_parameters():
     min_dist = retrieve('api/storage/optimization/input/min_dist.json')
     max_corners = retrieve('api/storage/optimization/input/max_corners.json')
-    return min_dist, max_corners
+    return min_dist['min_dist'], max_corners['max_corners']
 
-def initialise():
-    args = sys.argv
+# def initialise():
+#     args = sys.argv
 
-    # fetching options from input arguments
-    # options are marked with single dash
-    options = []
-    for arg in args[1:]:
-        if len(arg)>1 and arg[0] == '-' and arg[1] != '-':
-            options += [arg[1:]]
-    # fetching parameters from input arguments
-    # parameters are marked with double dash,
-    # the value of a parameter is the next argument
-    listiterator = args[1:].__iter__()
-    while 1:
-        try:
-            item = next( listiterator )
-            if item[:2] == '--':
-                exec(item[2:] + ' = next( listiterator )')
+#     # fetching options from input arguments
+#     # options are marked with single dash
+#     options = []
+#     for arg in args[1:]:
+#         if len(arg)>1 and arg[0] == '-' and arg[1] != '-':
+#             options += [arg[1:]]
+#     # fetching parameters from input arguments
+#     # parameters are marked with double dash,
+#     # the value of a parameter is the next argument
+#     listiterator = args[1:].__iter__()
+#     while 1:
+#         try:
+#             item = next( listiterator )
+#             if item[:2] == '--':
+#                 exec(item[2:] + ' = next( listiterator )')
 
-        except:
-            break
+#         except:
+#             break
 
-    details = locals()
-    return details['img_src'], details['img_dst']
+#     details = locals()
+#     return details['img_src'], details['img_dst']
 
-def initial_alignment(img_src, img_dst):
+def initial_alignment():
 
     ############################ Alignment Configurations ##########################
 
@@ -134,7 +133,7 @@ def initial_alignment(img_src, img_dst):
     #         line = f.readline()
 
     # np.set_printoptions(suppress=True)
-    # tform = initalise_alignment_matrix(mat)
+    # tform = initialise_alignment_matrix(mat)
     # tform_align = skimage.transform._geometric.ProjectiveTransform(matrix=tform)
 
     src, dst = get_maps()
@@ -146,6 +145,16 @@ def initial_alignment(img_src, img_dst):
     tform_align = skimage.transform._geometric.ProjectiveTransform(matrix=tform)
 
     return src_results, dst_results, tform_align
+
+def encode_complex(z):
+    '''
+    Encoder from https://realpython.com/python-json/
+    '''
+    if isinstance(z, complex):
+        return (z.real, z.imag)
+    else:
+        type_name = z.__class__.__name__
+        raise TypeError(f"Object of type '{type_name}' is not JSON serializable")
 
 def optimize(src_results, dst_results, tform_align):
 
@@ -168,9 +177,9 @@ def optimize(src_results, dst_results, tform_align):
     }
     opt_config['tol_mot'] = 0.001 # * opt_config['opt_rate'] # break if (max_motion < tol_mot)
 
-    # min_dist, max_corners = get_parameters()
-    # opt_config['min_distance'] = min_dist
-    # opt_config['max_corner'] = max_corners
+    min_dist, max_corners = get_parameters()
+    opt_config['min_distance'] = min_dist
+    opt_config['max_corner'] = max_corners
 
     ############# POINT SAMPLING occupied cells (of the source image) ##############
     opt_tic = time.time()
@@ -187,7 +196,8 @@ def optimize(src_results, dst_results, tform_align):
                                                     grd_k_size=opt_config['gradient_ksize'],
                                                     normalize=True)
 
-    # TODO: store gradient map
+    # store gradient map
+    store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex)
 
     ################# data point correlation (for averaging motion) ################
     X_correlation = optali.data_point_correlation(X_aligned, correlation_sigma=opt_config['correlation_sigma'], normalize=True)
@@ -241,7 +251,6 @@ def mapper(image, inverse_map, output_shape, mode, cval):
 
     def coord_map(*args):
         np.set_printoptions(threshold=sys.maxsize)
-        print(*args)
         return inverse_map(*args)
 
     if len(input_shape) == 3 and len(output_shape) == 2:
@@ -289,8 +298,8 @@ def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_opt
     # TODO: store final matrix
 
 def main():
-    img_src, img_dst = initialise()
-    src_results, dst_results, tform_align = initial_alignment(img_src, img_dst)
+    # img_src, img_dst = initialise()
+    src_results, dst_results, tform_align = initial_alignment()
     X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
     visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map)
 
