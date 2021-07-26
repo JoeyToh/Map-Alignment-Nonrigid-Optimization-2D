@@ -5,6 +5,8 @@ import os
 
 import scipy
 from scipy import ndimage as ndi
+from scipy.spatial.qhull import Delaunay
+
 new_paths = [
     u'../arrangement/',
     u'../Map-Alignment-2D'
@@ -43,7 +45,7 @@ def retrieve(relative_path_to_file):
 def store(data, relative_path_to_file, encodingType=None):
     '''
     Converts dictionary into JSON format and stores it in file
-    ''' 
+    '''
     dirname = os.path.dirname(os.path.abspath(__file__))
     parent = os.path.split(dirname)[0]
     file = os.path.join(parent, relative_path_to_file)
@@ -156,6 +158,16 @@ def encode_complex(z):
         type_name = z.__class__.__name__
         raise TypeError(f"Object of type '{type_name}' is not JSON serializable")
 
+def encode_tf_obj(obj):
+    if isinstance(obj, Delaunay):
+        return obj.points.tolist()
+    elif isinstance(obj, skimage.transform.AffineTransform):
+        v = (obj.__dict__)['params']
+        return {'params' : v.tolist()}
+    else:
+        type_name = obj.__class__.__name__
+        raise TypeError(f"Object of type '{type_name}' is not JSON serializable")
+
 def optimize(src_results, dst_results, tform_align):
 
     opt_config = {
@@ -198,9 +210,11 @@ def optimize(src_results, dst_results, tform_align):
 
     # store gradient map
     store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex)
+    ####### Potential problem: gmap.json: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.
 
     ################# data point correlation (for averaging motion) ################
     X_correlation = optali.data_point_correlation(X_aligned, correlation_sigma=opt_config['correlation_sigma'], normalize=True)
+
     ################################# Optimization #################################
     X_optimized, optimization_log = optali.optimize_alignment( X0=X_aligned, X_correlation=X_correlation,
                                                                gradient_map=grd_map, fitness_map=fit_map,
@@ -211,63 +225,10 @@ def optimize(src_results, dst_results, tform_align):
     tform_opt = skimage.transform._geometric.PiecewiseAffineTransform()
     tform_opt.estimate(X_aligned, X_optimized)
 
-    # TODO: store tf matrix
+    # store tform_opt
+    store(tform_opt.__dict__, 'api/storage/optimization/output/matrix.json', encodingType=encode_tf_obj)
 
     return X_aligned, X_optimized, grd_map, tform_opt
-
-def _to_ndimage_mode(mode):
-    """Convert from `numpy.pad` mode name to the corresponding ndimage mode."""
-    mode_translation_dict = dict(constant='constant', edge='nearest',
-                                 symmetric='reflect', reflect='mirror',
-                                 wrap='wrap')
-    if mode not in mode_translation_dict:
-        raise ValueError(
-            ("Unknown mode: '{}', or cannot translate mode. The "
-             "mode should be one of 'constant', 'edge', 'symmetric', "
-             "'reflect', or 'wrap'. See the documentation of numpy.pad for"
-             "more info.").format(mode))
-    return _fix_ndimage_mode(mode_translation_dict[mode])
-
-
-def _fix_ndimage_mode(mode):
-    # SciPy 1.6.0 introduced grid variants of constant and wrap which
-    # have less surprising behavior for images. Use these when available
-    grid_modes = {'constant': 'grid-constant', 'wrap': 'grid-wrap'}
-    mode = grid_modes.get(mode, mode)
-    return mode
-
-def mapper(image, inverse_map, output_shape, mode, cval):
-    order = 0 if image.dtype == bool else 1
-
-    if order > 0:
-        image = sksh.convert_to_float(image, True)
-        if image.dtype == np.float16:
-            image = image.astype(np.float32)
-
-    input_shape = np.array(image.shape)
-    output_shape = sksh.safe_as_int(output_shape)
-
-    warped = None
-
-    def coord_map(*args):
-        np.set_printoptions(threshold=sys.maxsize)
-        return inverse_map(*args)
-
-    if len(input_shape) == 3 and len(output_shape) == 2:
-
-        output_shape = (output_shape[0], output_shape[1], input_shape[2])
-
-    coords = skimage.transform.warp_coords(coord_map, output_shape)
-
-    prefilter = order > 1
-    ndi_mode = _to_ndimage_mode(mode)
-
-    warped = ndi.map_coordinates(image, coords, prefilter=prefilter,
-                                 mode=ndi_mode, order=order, cval=cval)
-
-    skimage.transform._warps._clip_warp_output(image, warped, order, mode, cval, True)
-
-    return warped
 
 def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map):
 
@@ -285,17 +246,17 @@ def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_opt
                                              preserve_range=True, mode='constant', cval=127)
 
     # warp aligned source image according to optimization
-    # src_img_optimized = skimage.transform.warp(src_img_aligned, tform_opt.inverse,
-    #                                             output_shape=(dst_results['image'].shape),
-    #                                             preserve_range=True, mode='constant', cval=127)
-    src_img_optimized = mapper(src_img_aligned, tform_opt.inverse, (dst_results['image']).shape, 'constant', 127)
+    src_img_optimized = skimage.transform.warp(src_img_aligned, tform_opt.inverse,
+                                                output_shape=(dst_results['image'].shape),
+                                                preserve_range=True, mode='constant', cval=127)
+
     ########## save/plotting alignment, motion of points and optimized alignment
     optplt.plot_alignment_motion_optimized(dst_results['image'],
                                             src_img_aligned, src_img_optimized, grd_map,
                                             X_aligned, X_optimized)
 
-    # TODO: calculate final matrix
-    # TODO: store final matrix
+def get_final(coords, tform_opt):
+    return coords
 
 def main():
     # img_src, img_dst = initialise()
