@@ -208,10 +208,6 @@ def optimize(src_results, dst_results, tform_align):
                                                     grd_k_size=opt_config['gradient_ksize'],
                                                     normalize=True)
 
-    # store gradient map
-    store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex)
-    ####### Potential problem: gmap.json: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.
-
     ################# data point correlation (for averaging motion) ################
     X_correlation = optali.data_point_correlation(X_aligned, correlation_sigma=opt_config['correlation_sigma'], normalize=True)
 
@@ -224,9 +220,6 @@ def optimize(src_results, dst_results, tform_align):
 
     tform_opt = skimage.transform._geometric.PiecewiseAffineTransform()
     tform_opt.estimate(X_aligned, X_optimized)
-
-    # store tform_opt
-    store(tform_opt.__dict__, 'api/storage/optimization/output/matrix.json', encodingType=encode_tf_obj)
 
     return X_aligned, X_optimized, grd_map, tform_opt
 
@@ -255,28 +248,48 @@ def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_opt
                                             src_img_aligned, src_img_optimized, grd_map,
                                             X_aligned, X_optimized)
 
-def get_final(coords, tform_opt):
-    return coords
+def get_transformed(coords):
+    '''
+    Assume coords is a numpy array in the form [x, y].
+    The input coords is in the frame of src.
+    The output coords is in the frame of dst.
+    '''
+    data = retrieve('api/storage/maps/maps.json')
+    src = data[0]
+    dst = data[1]
+
+    translated = np.array([coords[0] + src["translation"]["x"], coords[1] + src["translation"]["y"], coords[2]])
+    tform_align, tform_opt = main_without_store_and_visualize()
+    aligned = tform_align._apply_mat(translated, tform_align.params)
+    optimized = tform_opt.inverse(aligned)
+    transformed = np.array([optimized[0] + dst["translation"]["x"],optimized[1] + dst["translation"]["y"], coords[2]])
+    return transformed
+
+def main_without_store_and_visualize():
+    src_results, dst_results, tform_align = initial_alignment()
+    X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
+    return tform_align, tform_opt
+
+def main_without_store():
+    src_results, dst_results, tform_align = initial_alignment()
+    X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
+    visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map)
+
+def main_without_visualize():
+    src_results, dst_results, tform_align = initial_alignment()
+    X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
+    store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex) # Potential problem: gmap.json: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.
+    store(tform_opt.__dict__, 'api/storage/optimization/output/matrix.json', encodingType=encode_tf_obj)
 
 def main():
     # img_src, img_dst = initialise()
     src_results, dst_results, tform_align = initial_alignment()
     X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
+    store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex) # Potential problem: gmap.json: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.
+    store(tform_opt.__dict__, 'api/storage/optimization/output/matrix.json', encodingType=encode_tf_obj)
     visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map)
 
 ################################################################################
 
 if __name__ == '__main__':
-    '''
-    Parameters and Options:
-    -----------------------
-    --img_src 'the-address-name-to-sensor-map'
-    --img_dst 'the-address-name-to-layout-map'
-
-    Examples:
-    ---------
-    python demo.py --img_src 'map_sample/F5_04.png' --img_dst 'map_sample/F5_layout.png'
-    python demo.py --img_src 'map_sample/F5_04.png' --img_dst 'map_sample/F5_layout.png'
-    '''
-
-    main()
+    main_without_store()
