@@ -30,6 +30,7 @@ import map_alignment.mapali_plotting as maplt
 import optimize_alignment.optimize_alignment as optali
 import optimize_alignment.plotting as optplt
 
+################################## STORAGE #####################################
 
 def retrieve(relative_path_to_file):
     '''
@@ -52,12 +53,26 @@ def store(data, relative_path_to_file, encodingType=None):
     with open(file, "w") as f:
         json.dump(data, f, default=encodingType)
 
+########################### RETRIEVE INPUT VALUES #############################
+
 def get_maps():
     maps = retrieve('api/storage/maps/maps.json')
     src = maps[0]
     dst = maps[1]
 
     return src, dst
+
+def get_alignment_matrix():
+    m = retrieve('api/storage/alignment/output/matrix.json')["matrix"]
+    tf_matrix = np.array(m)
+    return tf_matrix
+
+def get_parameters():
+    min_dist = retrieve('api/storage/optimization/input/min_dist.json')
+    max_corners = retrieve('api/storage/optimization/input/max_corners.json')
+    return min_dist['min_dist'], max_corners['max_corners']
+
+########################## INITIAL ALIGNMENT ################################
 
 # def initialise_alignment_matrix(str):
 #     tf_matrix = np.empty((3, 3))
@@ -70,16 +85,6 @@ def get_maps():
 #             tf_matrix[i][j] = x[j]
 
 #     return tf_matrix
-
-def get_alignment_matrix():
-    m = retrieve('api/storage/alignment/output/matrix.json')["matrix"]
-    tf_matrix = np.array(m)
-    return tf_matrix
-
-def get_parameters():
-    min_dist = retrieve('api/storage/optimization/input/min_dist.json')
-    max_corners = retrieve('api/storage/optimization/input/max_corners.json')
-    return min_dist['min_dist'], max_corners['max_corners']
 
 # def initialise():
 #     args = sys.argv
@@ -105,6 +110,7 @@ def get_parameters():
 
 #     details = locals()
 #     return details['img_src'], details['img_dst']
+
 
 def initial_alignment():
 
@@ -148,6 +154,8 @@ def initial_alignment():
 
     return src_results, dst_results, tform_align
 
+############################## ENCODERS #################################
+
 def encode_complex(z):
     '''
     Encoder from https://realpython.com/python-json/
@@ -167,6 +175,8 @@ def encode_tf_obj(obj):
     else:
         type_name = obj.__class__.__name__
         raise TypeError(f"Object of type '{type_name}' is not JSON serializable")
+
+########################## OPTIMIZATION STEP ################################
 
 def optimize(src_results, dst_results, tform_align):
 
@@ -223,6 +233,8 @@ def optimize(src_results, dst_results, tform_align):
 
     return X_aligned, X_optimized, grd_map, tform_opt
 
+############################### VISUALIZING #####################################
+
 def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map):
 
     '''
@@ -248,12 +260,15 @@ def visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_opt
                                             src_img_aligned, src_img_optimized, grd_map,
                                             X_aligned, X_optimized)
 
-def get_transformed(coords):
+########################### TRANSFORM COORDINATE ##############################
+
+def get_transformed(req):
     '''
     Assume coords is a numpy array in the form [x, y].
     The input coords is in the frame of src.
     The output coords is in the frame of dst.
     '''
+    coords = np.array([req['x'], req['y']])
     data = retrieve('api/storage/maps/maps.json')
     src = data[0]
     dst = data[1]
@@ -264,6 +279,8 @@ def get_transformed(coords):
     optimized = tform_opt.inverse(aligned)
     transformed = np.array([optimized[0] + dst["translation"]["x"],optimized[1] + dst["translation"]["y"], coords[2]])
     return transformed
+
+##################################### MAIN #####################################
 
 def main_without_store_and_visualize():
     src_results, dst_results, tform_align = initial_alignment()
@@ -279,17 +296,17 @@ def main_without_visualize():
     src_results, dst_results, tform_align = initial_alignment()
     X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
     store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex) # Potential problem: gmap.json: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.
-    store(tform_opt.__dict__, 'api/storage/optimization/output/matrix.json', encodingType=encode_tf_obj)
+    store(tform_opt.__dict__, 'api/storage/optimization/output/tform_object.json', encodingType=encode_tf_obj)
 
 def main():
     # img_src, img_dst = initialise()
     src_results, dst_results, tform_align = initial_alignment()
     X_aligned, X_optimized, grd_map, tform_opt = optimize(src_results, dst_results, tform_align)
     store(grd_map.tolist(), 'api/storage/optimization/output/gmap.json', encodingType=encode_complex) # Potential problem: gmap.json: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.
-    store(tform_opt.__dict__, 'api/storage/optimization/output/matrix.json', encodingType=encode_tf_obj)
+    store(tform_opt.__dict__, 'api/storage/optimization/output/tform_object.json', encodingType=encode_tf_obj)
     visualize(src_results, dst_results, tform_align, tform_opt, X_aligned, X_optimized, grd_map)
 
 ################################################################################
 
 if __name__ == '__main__':
-    main_without_store()
+    main()
